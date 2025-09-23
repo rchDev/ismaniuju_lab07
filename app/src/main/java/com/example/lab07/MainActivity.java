@@ -24,16 +24,13 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
-            if (Intent.ACTION_BATTERY_CHANGED.equals(action)) {
-                int level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
-                int scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
-                int percent = (int) ((level / (float) scale) * 100);
-                Toast.makeText(context, "Battery level: " + percent, Toast.LENGTH_SHORT).show();
-            } else if (Intent.ACTION_BATTERY_LOW.equals(action)) {
-                // TODO: implement ACTION_BATTERY_LOW branch
-            } else if (Intent.ACTION_BATTERY_OKAY.equals(action)) {
-                // TODO: implement ACTION_BATTERY_OKAY branch
+            if (!Intent.ACTION_BATTERY_CHANGED.equals(action)) {
+                return;
             }
+            int level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+            int scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+            int percent = (int) ((level / (float) scale) * 100);
+            Toast.makeText(context, "Battery level: " + percent, Toast.LENGTH_SHORT).show();
         }
     };
 
