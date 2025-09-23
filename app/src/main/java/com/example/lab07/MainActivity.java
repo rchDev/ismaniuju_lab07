@@ -1,9 +1,11 @@
 package com.example.lab07;
 
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.os.BatteryManager;
 import android.os.Bundle;
 import android.widget.CompoundButton;
@@ -15,6 +17,7 @@ import androidx.appcompat.widget.SwitchCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.work.WorkManager;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -44,13 +47,27 @@ public class MainActivity extends AppCompatActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+        PackageManager pm = this.getPackageManager();
+        ComponentName component = new ComponentName(this, BatteryStateReceiver.class);
 
         SwitchCompat batterySwitch = findViewById(R.id.sw_battery_level);
         batterySwitch.setOnCheckedChangeListener((CompoundButton buttonView, boolean isChecked) -> {
             if (isChecked) {
+                pm.setComponentEnabledSetting(
+                        component,
+                        PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                        PackageManager.DONT_KILL_APP
+                );
                 registerBatteryInfoReceiver();
             } else {
                 unregisterBatteryInfoReceiver();
+                pm.setComponentEnabledSetting(
+                        component,
+                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                        PackageManager.DONT_KILL_APP
+                );
+                WorkManager.getInstance(this)
+                        .cancelUniqueWork(BatteryReminderWorker.TAG);
             }
         });
     }
