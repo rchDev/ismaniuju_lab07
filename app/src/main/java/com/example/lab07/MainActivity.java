@@ -6,16 +6,22 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.BatteryManager;
 import android.os.Bundle;
+import android.widget.CompoundButton;
+import android.widget.Switch;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SwitchCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.google.android.material.materialswitch.MaterialSwitch;
+
 public class MainActivity extends AppCompatActivity {
 
+    private boolean isBatteryReceiverRegistered = false;
     private final BroadcastReceiver batteryInfoReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -43,22 +49,52 @@ public class MainActivity extends AppCompatActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+
+        SwitchCompat batterySwitch = findViewById(R.id.sw_battery_level);
+        batterySwitch.setOnCheckedChangeListener((CompoundButton buttonView, boolean isChecked) -> {
+            if (isChecked) {
+                registerBatteryInfoReceiver();
+            } else {
+                unregisterBatteryInfoReceiver();
+            }
+        });
     }
 
-    @Override
-    protected void onStart() {
-        super.onStart();
+    private void registerBatteryInfoReceiver() {
+        if (isBatteryReceiverRegistered) {
+            return;
+        }
+
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_BATTERY_CHANGED);
         filter.addAction(Intent.ACTION_BATTERY_LOW);
         filter.addAction(Intent.ACTION_BATTERY_OKAY);
 
         registerReceiver(batteryInfoReceiver, filter);
+
+        isBatteryReceiverRegistered = true;
+    }
+
+    private void unregisterBatteryInfoReceiver() {
+        if (!isBatteryReceiverRegistered) {
+            return;
+        }
+        unregisterReceiver(batteryInfoReceiver);
+        isBatteryReceiverRegistered = false;
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        SwitchCompat batterySwitch = findViewById(R.id.sw_battery_level);
+        if (batterySwitch.isChecked()) {
+            registerBatteryInfoReceiver();
+        }
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        unregisterReceiver(batteryInfoReceiver);
+        unregisterBatteryInfoReceiver();
     }
 }

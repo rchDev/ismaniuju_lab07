@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Lab07</string>
+    <string name="sw_battery_level_text">Stebėti baterijos lygį</string>
 </resources>
