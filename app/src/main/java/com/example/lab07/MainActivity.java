@@ -5,7 +5,6 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -13,7 +12,6 @@ import android.content.pm.PackageManager;
 import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.widget.CompoundButton;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
@@ -44,13 +42,26 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
-            if (!Intent.ACTION_BATTERY_CHANGED.equals(action)) {
-                return;
+            if (Intent.ACTION_BATTERY_CHANGED.equals(action)) {
+                int level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+                int scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+                int percent = (int) ((level / (float) scale) * 100);
+                showNotification("Battery Reminder", "Battery level: " + percent);
+            } else if (Intent.ACTION_BATTERY_LOW.equals(action)) {
+                // Start periodic WorkManager task
+                PeriodicWorkRequest reminderRequest = new PeriodicWorkRequest
+                        .Builder(BatteryReminderWorker.class, 15, TimeUnit.MINUTES)
+                        .build();
+
+                WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+                        BatteryReminderWorker.TAG,
+                        ExistingPeriodicWorkPolicy.CANCEL_AND_REENQUEUE,
+                        reminderRequest
+                );
+            } else if (Intent.ACTION_BATTERY_OKAY.equals(action)) {
+                WorkManager.getInstance(context)
+                        .cancelUniqueWork(BatteryReminderWorker.TAG);
             }
-            int level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
-            int scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
-            int percent = (int) ((level / (float) scale) * 100);
-            showNotification("Battery Reminder", "Battery level: " + percent);
         }
     };
 
@@ -72,15 +83,11 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
 
-        // UI setup code...
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
-
-        PackageManager pm = this.getPackageManager();
-        ComponentName component = new ComponentName(this, BatteryStateReceiver.class);
 
         WorkManager.getInstance(getApplicationContext())
                 .getWorkInfosForUniqueWorkLiveData(BatteryReminderWorker.TAG)
@@ -93,32 +100,27 @@ public class MainActivity extends AppCompatActivity {
                     runOnUiThread(() -> {
                         SwitchCompat batterySwitch = findViewById(R.id.sw_battery_level);
                         batterySwitch.setChecked(isActive);
-
-                        if (!isActive) {
-                            return;
-                        }
-
-                        pm.setComponentEnabledSetting(
-                                component,
-                                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                                PackageManager.DONT_KILL_APP
-                        );
-
-                        isBatteryReminderWorkerRunning = true;
+                        this.isBatteryReminderWorkerRunning = isActive;
                     });
                 });
 
         SwitchCompat batterySwitch = findViewById(R.id.sw_battery_level);
+        if (!isBatteryReminderWorkerRunning && getBatteryPercentage() <= 15 && batterySwitch.isChecked()) {
+            PeriodicWorkRequest reminderRequest = new PeriodicWorkRequest
+                    .Builder(BatteryReminderWorker.class, 15, TimeUnit.MINUTES)
+                    .build();
+
+            WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+                    BatteryReminderWorker.TAG,
+                    ExistingPeriodicWorkPolicy.CANCEL_AND_REENQUEUE,
+                    reminderRequest
+            );
+        }
+
         batterySwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) {
-                pm.setComponentEnabledSetting(
-                        component,
-                        PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                        PackageManager.DONT_KILL_APP
-                );
                 registerBatteryInfoReceiver();
-                var batteryLevel = getBatteryPercentage();
-                if (batteryLevel <= 15 && !isBatteryReminderWorkerRunning) {
+                if (!isBatteryReminderWorkerRunning && getBatteryPercentage() <= 15) {
                     PeriodicWorkRequest reminderRequest = new PeriodicWorkRequest
                             .Builder(BatteryReminderWorker.class, 15, TimeUnit.MINUTES)
                             .build();
@@ -130,15 +132,6 @@ public class MainActivity extends AppCompatActivity {
                     );
                 }
             } else {
-
-                WorkManager.getInstance(this)
-                        .cancelUniqueWork(BatteryReminderWorker.TAG);
-
-                pm.setComponentEnabledSetting(
-                        component,
-                        PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                        PackageManager.DONT_KILL_APP
-                );
                 unregisterBatteryInfoReceiver();
                 WorkManager.getInstance(this)
                         .cancelUniqueWork(BatteryReminderWorker.TAG);
@@ -147,8 +140,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private float getBatteryPercentage() {
-        IntentFilter ifilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
-        Intent batteryStatus = registerReceiver(null, ifilter);
+        IntentFilter iFilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+        Intent batteryStatus = registerReceiver(null, iFilter);
 
         int level = -1;
         int scale = -1;
@@ -165,6 +158,8 @@ public class MainActivity extends AppCompatActivity {
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_BATTERY_CHANGED);
+        filter.addAction(Intent.ACTION_BATTERY_LOW);
+        filter.addAction(Intent.ACTION_BATTERY_OKAY);
         registerReceiver(batteryInfoReceiver, filter);
         isBatteryReceiverRegistered = true;
     }
@@ -214,7 +209,6 @@ public class MainActivity extends AppCompatActivity {
             NotificationManagerCompat.from(context)
                     .notify((int) System.currentTimeMillis(), builder.build());
         } else {
-            // 🔹 Ask for permission here (launcher was registered in onCreate)
             requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
         }
     }

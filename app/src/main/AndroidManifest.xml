@@ -22,19 +22,10 @@
             </intent-filter>
         </activity>
 
-<!--        <service-->
-<!--            android:name=".BatteryMonitoringService"-->
-<!--            android:enabled="true"-->
-<!--            android:exported="false" />-->
-
-        <receiver
-            android:name=".BatteryStateReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BATTERY_LOW" />
-                <action android:name="android.intent.action.BATTERY_OKAY" />
-            </intent-filter>
-        </receiver>
+        <service
+            android:name=".BatteryMonitoringService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice|dataSync" />
     </application>
 
 </manifest>
