@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 
+import androidx.activity.result.ActivityResultLauncher;
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
@@ -18,6 +19,7 @@ import androidx.work.WorkerParameters;
 
 public class BatteryReminderWorker extends Worker {
 
+    private ActivityResultLauncher<String> requestNotificationPermissionLauncher;
     public static String TAG = "battery_reminder_worker";
 
     public BatteryReminderWorker(@NonNull Context context, @NonNull WorkerParameters params) {
@@ -52,7 +54,7 @@ public class BatteryReminderWorker extends Worker {
         );
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId)
-                .setSmallIcon(R.mipmap.ic_launcher) // your app's icon
+                .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentTitle(title)
                 .setContentText(message)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -69,6 +71,8 @@ public class BatteryReminderWorker extends Worker {
         if (canPost) {
             NotificationManagerCompat.from(context)
                     .notify((int) System.currentTimeMillis(), builder.build());
+        } else {
+            requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
         }
     }
 }
