@@ -27,7 +27,6 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.work.ExistingPeriodicWorkPolicy;
 import androidx.work.PeriodicWorkRequest;
-import androidx.work.WorkInfo;
 import androidx.work.WorkManager;
 
 import java.util.concurrent.TimeUnit;
@@ -36,8 +35,9 @@ public class MainActivity extends AppCompatActivity {
 
     private ActivityResultLauncher<String> requestNotificationPermissionLauncher;
 
+    private SwitchCompat batterySwitch;
+
     private boolean isBatteryReceiverRegistered = false;
-    private boolean isBatteryReminderWorkerRunning = false;
     private final BroadcastReceiver batteryInfoReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -89,26 +89,15 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
-        SwitchCompat batterySwitch = findViewById(R.id.sw_battery_level);
+        boolean savedSwState = getSharedPreferences("settings", MODE_PRIVATE)
+                .getBoolean("battery_switch", false);
 
-        WorkManager.getInstance(getApplicationContext())
-                .getWorkInfosForUniqueWorkLiveData(BatteryReminderWorker.TAG)
-                .observe(this, workInfos -> {
-                    if (workInfos == null || workInfos.isEmpty()) {
-                        return;
-                    }
-                    WorkInfo.State state = workInfos.get(0).getState();
-                    boolean isActive = (state == WorkInfo.State.ENQUEUED || state == WorkInfo.State.RUNNING);
-                    runOnUiThread(() -> {
-                        batterySwitch.setChecked(isActive);
-                        this.isBatteryReminderWorkerRunning = isActive;
-                    });
-                });
-
-        batterySwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+        this.batterySwitch = findViewById(R.id.sw_battery_level);
+        this.batterySwitch.setChecked(savedSwState);
+        this.batterySwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) {
                 registerBatteryInfoReceiver();
-                if (!isBatteryReminderWorkerRunning && getBatteryPercentage() <= 15) {
+                if (getBatteryPercentage() <= 15) {
                     PeriodicWorkRequest reminderRequest = new PeriodicWorkRequest
                             .Builder(BatteryReminderWorker.class, 15, TimeUnit.MINUTES)
                             .build();
@@ -125,6 +114,16 @@ public class MainActivity extends AppCompatActivity {
                         .cancelUniqueWork(BatteryReminderWorker.TAG);
             }
         });
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Persist the current state
+        getSharedPreferences("settings", MODE_PRIVATE)
+                .edit()
+                .putBoolean("battery_switch", batterySwitch.isChecked())
+                .apply(); // async + safe on UI thread
     }
 
     private float getBatteryPercentage() {
