@@ -89,6 +89,8 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
+        SwitchCompat batterySwitch = findViewById(R.id.sw_battery_level);
+
         WorkManager.getInstance(getApplicationContext())
                 .getWorkInfosForUniqueWorkLiveData(BatteryReminderWorker.TAG)
                 .observe(this, workInfos -> {
@@ -98,24 +100,10 @@ public class MainActivity extends AppCompatActivity {
                     WorkInfo.State state = workInfos.get(0).getState();
                     boolean isActive = (state == WorkInfo.State.ENQUEUED || state == WorkInfo.State.RUNNING);
                     runOnUiThread(() -> {
-                        SwitchCompat batterySwitch = findViewById(R.id.sw_battery_level);
                         batterySwitch.setChecked(isActive);
                         this.isBatteryReminderWorkerRunning = isActive;
                     });
                 });
-
-        SwitchCompat batterySwitch = findViewById(R.id.sw_battery_level);
-        if (!isBatteryReminderWorkerRunning && getBatteryPercentage() <= 15 && batterySwitch.isChecked()) {
-            PeriodicWorkRequest reminderRequest = new PeriodicWorkRequest
-                    .Builder(BatteryReminderWorker.class, 15, TimeUnit.MINUTES)
-                    .build();
-
-            WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-                    BatteryReminderWorker.TAG,
-                    ExistingPeriodicWorkPolicy.CANCEL_AND_REENQUEUE,
-                    reminderRequest
-            );
-        }
 
         batterySwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) {
